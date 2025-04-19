@@ -1,27 +1,38 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader } from "../components/ui/card";
-import { Clock, Info } from "lucide-react";
-import { useEffect } from "react";
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader } from '../components/ui/card';
+import { Clock, Info, Cloud, Hotel } from 'lucide-react';
+import { useEffect } from 'react';
 
 function TripResult() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { tripData } = location.state || {};
+  const { tripData, weather, hotels } = location.state || {};
+  console.log('Received state:', { tripData, weather, hotels }); // Debug log
 
   useEffect(() => {
-    if (!tripData) navigate("/");
-  }, [tripData, navigate]);
+    if (!tripData) {
+      // Do not redirect immediately; show error UI instead
+    }
+  }, [tripData]);
 
   const cleanText = (text) => {
     return text
-      .replace(/\*\*?:|:\*\*?|\*\*|\*/g, "")
-      .replace(/^\s*-+\s*|\s*-+\s*$/g, "")
-      .replace(/\s+/g, " ")
+      .replace(/\*\*?:|:\*\*?|\*\*|\*/g, '')
+      .replace(/^\s*-+\s*|\s*-+\s*$/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
   };
 
+  const removeTimeRange = (text) => {
+    return text.replace(/\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm):/g, '').trim();
+  };
+
   const parseTripData = (text) => {
+    if (!text || typeof text !== 'string') {
+      return [];
+    }
+
     const dayRegex = /Day \d+:/g;
     const dayMatches = [...text.matchAll(dayRegex)];
 
@@ -72,19 +83,21 @@ function TripResult() {
             const cleanedLine = cleanText(line);
             if (!cleanedLine || cleanedLine === timeRange) return;
 
-            if (line.match(/^\*\s*\*\*Local Tip:\*\*/i) || line.includes("Local Tip:") || line.match(/^\(i\)Local Tip:/i)) {
-              const tipContent = cleanedLine.replace(/Local Tip:/i, "").trim();
+            if (line.match(/^\*\s*\*\*Local Tip:\*\*/i) || line.includes('Local Tip:') || line.match(/^\(i\)Local Tip:/i)) {
+              const tipContent = cleanedLine.replace(/Local Tip:/i, '').trim();
               if (currentActivity) {
                 currentActivity.tip = tipContent;
               } else {
-                currentActivity = { title: "Local Advice", tip: tipContent };
+                currentActivity = { title: 'Local Advice', tip: tipContent };
                 timeBlock.activities.push(currentActivity);
               }
-            } else if (line.includes("http") || line.includes("https://")) {
+            } else if (line.includes('http') || line.includes('https://')) {
               const imageMatch = line.match(/(https?:\/\/[^\s)]+)/i);
               if (imageMatch) {
                 const imageUrl = imageMatch[1].trim();
-                const title = cleanText(line.replace(imageMatch[0], ""));
+                let title = cleanText(line.replace(imageMatch[0], ''));
+                title = removeTimeRange(title);
+
                 if (title && !seenTitles.has(title)) {
                   currentActivity = { title, image: imageUrl };
                   timeBlock.activities.push(currentActivity);
@@ -94,7 +107,9 @@ function TripResult() {
             } else if (currentActivity && !line.match(/^\(i\)Local Tip:/i)) {
               currentActivity.description = cleanedLine;
             } else {
-              const title = cleanedLine;
+              let title = cleanedLine;
+              title = removeTimeRange(title);
+
               if (title && !seenTitles.has(title)) {
                 currentActivity = { title };
                 timeBlock.activities.push(currentActivity);
@@ -114,86 +129,198 @@ function TripResult() {
     return parsedDays;
   };
 
+  if (!tripData) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Card className="p-6 max-w-md w-full">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-600 mb-6">No trip data available. Please try planning again.</p>
+          <Button onClick={() => navigate('/')} className="w-full">
+            Plan Another Trip
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-blue-600 text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-black">Your Travel Itinerary ✈️</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Your Travel Itinerary ✈️</h1>
           <Button
-            onClick={() => navigate("/")}
+            onClick={() => navigate('/')}
             className="bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-800 w-full md:w-auto"
           >
             Plan Another Adventure
           </Button>
         </div>
         <p className="mt-4 text-blue-100 max-w-2xl">
-          Explore your personalized trip plan with curated activities and local recommendations.
+          Explore your personalized trip plan with curated activities, weather forecasts, and hotel recommendations.
         </p>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-10">
-        {parseTripData(tripData).map((day, index) => (
-          <div key={index} className="mb-24">
-            <h2 className="text-2xl font-bold text-black mb-6">{day.title}</h2>
-            {/* Render time blocks in pairs */}
-            {day.timeBlocks.map((_, i) => {
-              if (i % 2 !== 0) return null; // Only handle even indexes
-              const block1 = day.timeBlocks[i];
-              const block2 = day.timeBlocks[i + 1];
-
-              return (
-                <div key={i} className="grid grid-cols-2 gap-4 mb-6">
-                  {[block1, block2].map((block, idx) =>
-                    block ? (
-                      <Card
-                        key={idx}
-                        className="overflow-hidden shadow-md rounded-lg w-full h-48"
-                      >
-                        <CardHeader className="py-3 px-4 bg-gray-50">
-                          <h4 className="font-semibold text-md text-orange-600 flex items-center">
-                            <Clock className="mr-2 h-4 w-4 text-orange-500" />{" "}
-                            {block.timeRange}
-                          </h4>
-                        </CardHeader>
-                        <CardContent className="p-4 flex flex-col justify-between h-full">
-                          {block.activities[0]?.image && (
-                            <img
-                              src={block.activities[0].image}
-                              alt={
-                                block.activities[0].title || "Activity image"
-                              }
-                              className="w-full h-24 object-cover mb-2 rounded"
-                            />
-                          )}
-                          <div>
-                            <h4 className="font-semibold text-md text-black mb-2">
-                              {block.activities[0]?.title || "No activity"}
-                            </h4>
-                            {block.activities[0]?.description && (
-                              <p className="text-sm text-gray-600 mb-2">
-                                {block.activities[0].description}
-                              </p>
-                            )}
-                          </div>
-                          {block.activities[0]?.tip && (
-                            <div className="mt-2 text-sm bg-yellow-50 p-2 rounded flex items-center">
-                              <Info className="h-4 w-4 text-yellow-500 mr-2" />
-                              <span className="text-yellow-700">
-                                Local Tip: {block.activities[0].tip}
-                              </span>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div key={idx} /> // Empty block if none
-                    )
-                  )}
-                </div>
-              );
-            })}
+        {/* Weather Summary */}
+        {weather && weather.length > 0 ? (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Weather Forecast</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {weather.map((w, index) => (
+                <Card key={index} className="p-4">
+                  <p className="font-semibold text-gray-800">{w.date || 'N/A'}</p>
+                  <p className="text-gray-600">
+                    {w.temp === 'N/A' ? 'N/A' : `${w.temp}°C`}, {w.weather || 'N/A'}
+                  </p>
+                  {w.icon && <img src={w.icon} alt="weather icon" className="h-6 w-6 inline mt-2" />}
+                </Card>
+              ))}
+            </div>
           </div>
-        ))}
+        ) : (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Weather Forecast</h2>
+            <Card className="p-4">
+              <p className="text-gray-600">Weather data unavailable. Check API connection.</p>
+            </Card>
+          </div>
+        )}
+
+        {/* Hotel Recommendations */}
+        {hotels && hotels.length > 0 ? (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Hotel Recommendations</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {hotels.map((hotel, index) => (
+                <Card key={index} className="overflow-hidden shadow-md rounded-lg">
+                  <CardHeader className="py-3 px-4 bg-gray-50">
+                    <h4 className="font-semibold text-md text-blue-600 flex items-center">
+                      <Hotel className="mr-2 h-4 w-4 text-blue-500" />
+                      {hotel.name}
+                    </h4>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    {hotel.photo ? (
+                      <img
+                        src={hotel.photo}
+                        alt={hotel.name}
+                        className="w-full h-32 object-cover rounded mb-4"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-32 bg-gray-200 flex items-center justify-center rounded mb-4">
+                        <span className="text-gray-500 text-sm">No photo available</span>
+                      </div>
+                    )}
+                    <p className="text-sm text-gray-600 mb-2">
+                      <strong>Rating:</strong> {hotel.rating || 'N/A'}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-2">
+                      <strong>Address:</strong> {hotel.address || 'N/A'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Price:</strong> {hotel.price || 'N/A'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Hotel Recommendations</h2>
+            <Card className="p-6">
+              <p className="text-gray-600">No hotel recommendations available. Check API connection.</p>
+            </Card>
+          </div>
+        )}
+
+        {/* Itinerary with Weather */}
+        {parseTripData(tripData).length > 0 ? (
+          parseTripData(tripData).map((day, index) => (
+            <div key={index} className="mb-12">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">{day.title}</h2>
+                {weather && weather[index] ? (
+                  <div className="flex items-center text-sm text-gray-700">
+                    <Cloud className="h-5 w-5 mr-2 text-blue-500" />
+                    <span>
+                      {weather[index].temp === 'N/A' ? 'N/A' : `${weather[index].temp}°C`}, {weather[index].weather || 'N/A'}
+                      {weather[index].icon && (
+                        <img src={weather[index].icon} alt="weather icon" className="inline h-5 w-5 ml-2" />
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-sm text-gray-700">
+                    <Cloud className="h-5 w-5 mr-2 text-blue-500" />
+                    <span>Weather data unavailable</span>
+                  </div>
+                )}
+              </div>
+              {day.timeBlocks.map((_, i) => {
+                if (i % 2 !== 0) return null;
+                const block1 = day.timeBlocks[i];
+                const block2 = day.timeBlocks[i + 1];
+                console.log(`Pairing blocks ${i + 1} and ${i + 2} for ${day.title}:`, { block1, block2 });
+
+                return (
+                  <div key={i} className="grid grid-cols-2 gap-4 mb-6">
+                    {[block1, block2].map((block, idx) =>
+                      block ? (
+                        <Card
+                          key={idx}
+                          className="overflow-hidden shadow-md rounded-lg"
+                        >
+                          <CardHeader className="py-3 px-4 bg-gray-50">
+                            <h4 className="font-semibold text-md text-orange-600 flex items-center">
+                              <Clock className="mr-2 h-4 w-4 text-orange-500" />
+                              {block.timeRange}
+                            </h4>
+                          </CardHeader>
+                          <CardContent className="p-4 flex flex-col justify-between">
+                            {block.activities[0]?.image && (
+                              <img
+                                src={block.activities[0].image}
+                                alt={block.activities[0].title || 'Activity image'}
+                                className="w-24 h-24 object-cover rounded mb-2"
+                                loading="lazy"
+                              />
+                            )}
+                            <div>
+                              <h4 className="font-semibold text-md text-gray-800 mb-2">
+                                {block.activities[0]?.title || 'No activity'}
+                              </h4>
+                              {block.activities[0]?.description && (
+                                <p className="text-sm text-gray-600 mb-2">
+                                  {block.activities[0].description}
+                                </p>
+                              )}
+                            </div>
+                            {block.activities[0]?.tip && (
+                              <div className="mt-2 text-sm bg-yellow-50 p-2 rounded flex items-center">
+                                <Info className="h-4 w-4 text-yellow-500 mr-2" />
+                                <span className="text-yellow-700">
+                                  Local Tip: {block.activities[0].tip}
+                                </span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <div key={idx} />
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        ) : (
+          <Card className="p-6">
+            <p className="text-gray-600">No itinerary data available. Please try again.</p>
+          </Card>
+        )}
       </div>
     </div>
   );
