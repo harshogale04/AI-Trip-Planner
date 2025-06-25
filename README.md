@@ -1,5 +1,10 @@
 # 🧳 AI Trip Planner
 
+<<div align="center">
+  <img src="https://github.com/user-attachments/assets/c556cfb9-3b7b-45a3-b164-447efb965d2d" alt="AI Trip Planner Screenshot" width="500"/>
+</div>
+
+
 Welcome to **AI Trip Planner** – a smart, user-friendly travel assistant that generates detailed trip itineraries along with real-time weather data and hotel suggestions based on your input. Built using **React**, this web app helps you explore destinations and plan your journey effortlessly.
 
 ---
@@ -36,9 +41,16 @@ Welcome to **AI Trip Planner** – a smart, user-friendly travel assistant that 
    git clone https://github.com/yourusername/ai-trip-planner.git
    cd ai-trip-planner
 
-Install dependencies
-npm install
-npm run dev
+2. **Install dependencies**
+   ```bash
+   npm install
+
+3.Start the development server
+```bash
+   npm run dev
+
+
+
 
 
 
