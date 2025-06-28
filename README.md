@@ -1,8 +1,12 @@
 # 🧳 AI Trip Planner
-
-<<div align="center">
-  <img src="https://github.com/user-attachments/assets/c556cfb9-3b7b-45a3-b164-447efb965d2d" alt="AI Trip Planner Screenshot" width="500"/>
+<div style="display: flex; justify-content: center; gap: 20px;">
+  <img src="https://github.com/user-attachments/assets/785d7bbd-4747-4508-8144-aca1866ddee3" width="300"/>
+  <img src="https://github.com/user-attachments/assets/c46d025a-25e9-4a10-9eb7-5eef5e38e278" width="300"/>
+  <img src="https://github.com/user-attachments/assets/9be934d8-923e-42a1-b210-0085b1f4567d" width="300"/>
 </div>
+
+
+
 
 
 Welcome to **AI Trip Planner** – a smart, user-friendly travel assistant that generates detailed trip itineraries along with real-time weather data and hotel suggestions based on your input. Built using **React**, this web app helps you explore destinations and plan your journey effortlessly.
