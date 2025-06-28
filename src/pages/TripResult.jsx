@@ -2,19 +2,33 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Clock, Info, Cloud, Hotel } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function TripResult() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { tripData, weather, hotels } = location.state || {};
-  console.log('Received state:', { tripData, weather, hotels }); // Debug log
+
+  const [tripData, setTripData] = useState(location.state?.tripData || null);
+  const [weather, setWeather] = useState(location.state?.weather || []);
+  const [hotels, setHotels] = useState(location.state?.hotels || []);
+
+  console.log('Received state:', { tripData, weather, hotels });
 
   useEffect(() => {
     if (!tripData) {
-      // Do not redirect immediately; show error UI instead
+      const storedTrip = localStorage.getItem('tripData');
+      const storedWeather = localStorage.getItem('weather');
+      const storedHotels = localStorage.getItem('hotels');
+
+      if (storedTrip && storedWeather && storedHotels) {
+        setTripData(JSON.parse(storedTrip));
+        setWeather(JSON.parse(storedWeather));
+        setHotels(JSON.parse(storedHotels));
+      } else {
+        navigate('/');
+      }
     }
-  }, [tripData]);
+  }, [tripData, navigate]);
 
   const cleanText = (text) => {
     return text
@@ -29,9 +43,7 @@ function TripResult() {
   };
 
   const parseTripData = (text) => {
-    if (!text || typeof text !== 'string') {
-      return [];
-    }
+    if (!text || typeof text !== 'string') return [];
 
     const dayRegex = /Day \d+:/g;
     const dayMatches = [...text.matchAll(dayRegex)];
@@ -172,7 +184,6 @@ function TripResult() {
                   <p className="text-gray-600">
                     {w.temp === 'N/A' ? 'N/A' : `${w.temp}°C`}, {w.weather || 'N/A'}
                   </p>
-                  {w.icon && <img src={w.icon} alt="weather icon" className="h-6 w-6 inline mt-2" />}
                 </Card>
               ))}
             </div>
@@ -187,53 +198,51 @@ function TripResult() {
         )}
 
         {/* Hotel Recommendations */}
-        {hotels && hotels.length > 0 ? (
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Hotel Recommendations</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {hotels.map((hotel, index) => (
-                <Card key={index} className="overflow-hidden shadow-md rounded-lg">
-                  <CardHeader className="py-3 px-4 bg-gray-50">
-                    <h4 className="font-semibold text-md text-blue-600 flex items-center">
-                      <Hotel className="mr-2 h-4 w-4 text-blue-500" />
-                      {hotel.name}
-                    </h4>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    {hotel.photo ? (
-                      <img
-                        src={hotel.photo}
-                        alt={hotel.name}
-                        className="w-full h-32 object-cover rounded mb-4"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-200 flex items-center justify-center rounded mb-4">
-                        <span className="text-gray-500 text-sm">No photo available</span>
-                      </div>
-                    )}
-                    <p className="text-sm text-gray-600 mb-2">
-                      <strong>Rating:</strong> {hotel.rating || 'N/A'}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-2">
-                      <strong>Address:</strong> {hotel.address || 'N/A'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <strong>Price:</strong> {hotel.price || 'N/A'}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Hotel Recommendations</h2>
-            <Card className="p-6">
-              <p className="text-gray-600">No hotel recommendations available. Check API connection.</p>
-            </Card>
-          </div>
-        )}
+        <div className="mb-12">
+  <h2 className="text-2xl font-bold text-gray-800 mb-6">Hotel Recommendations</h2>
+  <div className="w-full max-w-6xl mx-auto px-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {/* tighter gap */}
+      {hotels.map((hotel, index) => (
+        <Card
+          key={index}
+          className="overflow-hidden shadow-md rounded-lg w-full **h-[320px]** flex flex-col justify-between" // <- set height
+        >
+          <CardHeader className="py-2 px-3 bg-gray-50">
+            <h4 className="font-semibold text-sm text-blue-600 flex items-center">
+              <Hotel className="mr-2 h-4 w-4 text-blue-500" />
+              {hotel.name.length > 30 ? hotel.name.slice(0, 30) + '...' : hotel.name}
+            </h4>
+          </CardHeader>
+          <CardContent className="p-3">
+            {hotel.photo ? (
+              <img
+                src={hotel.photo}
+                alt={hotel.name}
+                className="w-32 h-32 object-cover rounded mb-2"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-32 bg-gray-200 flex items-center justify-center rounded mb-2">
+                <span className="text-gray-500 text-sm">No photo available</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-600 mb-1">
+              <strong>Rating:</strong> {hotel.rating || 'N/A'}
+            </p>
+            <p className="text-xs text-gray-600 mb-1">
+              <strong>Address:</strong> {hotel.address || 'N/A'}
+            </p>
+            <p className="text-xs text-gray-600">
+              <strong>Price:</strong> {hotel.price || 'N/A'}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  </div>
+</div>
+
+
 
         {/* Itinerary with Weather */}
         {parseTripData(tripData).length > 0 ? (
@@ -268,10 +277,7 @@ function TripResult() {
                   <div key={i} className="grid grid-cols-2 gap-4 mb-6">
                     {[block1, block2].map((block, idx) =>
                       block ? (
-                        <Card
-                          key={idx}
-                          className="overflow-hidden shadow-md rounded-lg"
-                        >
+                        <Card key={idx} className="overflow-hidden shadow-md rounded-lg">
                           <CardHeader className="py-3 px-4 bg-gray-50">
                             <h4 className="font-semibold text-md text-orange-600 flex items-center">
                               <Clock className="mr-2 h-4 w-4 text-orange-500" />

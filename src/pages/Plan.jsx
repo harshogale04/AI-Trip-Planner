@@ -27,10 +27,23 @@ function Plan() {
 
     try {
       const response = await axios.post("http://localhost:5000/api/trip", formData)
-      const tripPlan = response.data.tripPlan
 
-      setTripResult(tripPlan) // Keep showing inline
-      navigate("/trip", { state: { tripData: tripPlan } })
+const { tripPlan, weather, hotels } = response.data
+
+// Optional: Save to localStorage to support reload
+localStorage.setItem("tripData", JSON.stringify(tripPlan))
+localStorage.setItem("weather", JSON.stringify(weather))
+localStorage.setItem("hotels", JSON.stringify(hotels))
+
+// Navigate to TripResult with all data
+navigate("/trip", {
+  state: {
+    tripData: tripPlan,
+    weather: weather,
+    hotels: hotels
+  }
+})
+
 
      
     } catch (err) {

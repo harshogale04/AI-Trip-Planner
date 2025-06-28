@@ -1,5 +1,4 @@
 import axios from 'axios';
-import genAI from '../config/gemini.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -7,6 +6,7 @@ dotenv.config();
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const OPENWEATHER_KEY = process.env.OPENWEATHER_KEY;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Fetch image from Unsplash
 const fetchImageFromUnsplash = async (query) => {
@@ -34,37 +34,38 @@ const fetchCityCoordinates = async (cityName) => {
     const city = response.data.data[0];
     if (!city) {
       console.warn(`No coordinates found for ${cityName}`);
-      return { lat: 35.6762, lon: 139.6503 }; // Fallback to Tokyo coordinates
+      return { lat: 35.6762, lon: 139.6503 }; // Fallback to Tokyo
     }
     console.log(`Coordinates for ${cityName}:`, { lat: city.latitude, lon: city.longitude });
     return { lat: city.latitude, lon: city.longitude };
   } catch (error) {
     console.error('Error fetching city coordinates:', error.message);
-    return { lat: 35.6762, lon: 139.6503 }; // Fallback to Tokyo coordinates
+    return { lat: 35.6762, lon: 139.6503 };
   }
 };
 
-// Fetch weather forecast from OpenWeatherMap
+// Fetch weather forecast
 const fetchWeatherForecast = async (lat, lon, noOfDays) => {
   try {
     const response = await axios.get('https://api.openweathermap.org/data/2.5/forecast', {
       params: {
         lat,
         lon,
-        cnt: noOfDays * 8, // 3-hour intervals per day
+        cnt: noOfDays * 8,
         appid: OPENWEATHER_KEY,
         units: 'metric',
       },
     });
-    if (!response.data.list || response.data.list.length === 0) {
+
+    const forecasts = response.data.list || [];
+    if (forecasts.length === 0) {
       console.warn('No weather data available from OpenWeatherMap');
       return Array(noOfDays).fill({ temp: 'N/A', weather: 'Data unavailable', icon: null });
     }
-    console.log('Raw weather data fetched:', response.data.list);
+
     const dailyForecasts = [];
-    const forecasts = response.data.list;
     for (let i = 0; i < Math.min(forecasts.length, noOfDays * 8); i += 8) {
-      const forecast = forecasts[i] || forecasts[0]; // Fallback to first if not enough data
+      const forecast = forecasts[i] || forecasts[0];
       dailyForecasts.push({
         date: new Date(forecast.dt * 1000).toLocaleDateString(),
         temp: forecast.main.temp,
@@ -72,11 +73,11 @@ const fetchWeatherForecast = async (lat, lon, noOfDays) => {
         icon: `http://openweathermap.org/img/wn/${forecast.weather[0].icon}.png`,
       });
     }
-    // Pad with fallback if fewer days than requested
+
     while (dailyForecasts.length < noOfDays) {
       dailyForecasts.push({ temp: 'N/A', weather: 'Data unavailable', icon: null });
     }
-    console.log('Processed weather data:', dailyForecasts);
+
     return dailyForecasts;
   } catch (error) {
     console.error('Error fetching weather:', error.message, error.response?.data);
@@ -84,7 +85,7 @@ const fetchWeatherForecast = async (lat, lon, noOfDays) => {
   }
 };
 
-// Fetch hotels from Travel Advisor (using RapidAPI)
+// Fetch hotels
 const fetchHotels = async (lat, lon) => {
   try {
     const response = await axios.get('https://travel-advisor.p.rapidapi.com/hotels/list-by-latlng', {
@@ -99,7 +100,6 @@ const fetchHotels = async (lat, lon) => {
       console.warn('No hotels found for the given coordinates');
       return [];
     }
-    console.log('Hotels fetched:', hotels);
     return hotels.map(hotel => ({
       name: hotel.name || 'Unnamed Hotel',
       rating: hotel.rating || 'N/A',
@@ -113,7 +113,7 @@ const fetchHotels = async (lat, lon) => {
   }
 };
 
-// Generate trip controller
+// Main controller
 export const generateTrip = async (req, res) => {
   const { location, noOfDays, budget, traveler, startDate } = req.body;
 
@@ -122,14 +122,14 @@ export const generateTrip = async (req, res) => {
   }
 
   const prompt = `
-  Create a ${noOfDays}-day travel itinerary for a ${traveler} visiting ${location} on a ${budget} budget.
-  Each day should begin with "Day X:" and include:
-  - 3 to 5 time slots (e.g. 9 AM – 11 AM)
-  - Place name
-  - Short description of 2 lines
-  - Local tips
-  - Add image URLs (ending in .jpg or .png) where appropriate
-  Format as plain text with each activity on a new line.
+Create a ${noOfDays}-day travel itinerary for a ${traveler} visiting ${location} on a ${budget} budget.
+Each day should begin with "Day X:" and include:
+- 3 to 5 time slots (e.g. 9 AM – 11 AM)
+- Place name
+- Short description of 2 lines
+- Local tips
+- Add image URLs (ending in .jpg or .png) where appropriate
+Format as plain text with each activity on a new line.
   `;
 
   try {
@@ -139,10 +139,19 @@ export const generateTrip = async (req, res) => {
       fetchHotels(coordinates.lat, coordinates.lon),
     ]);
 
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-1.5-pro-001' });
-    const result = await model.generateContent([prompt]);
-    const response = await result.response;
-    let text = response.text();
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const requestBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+    };
+
+    let text = '';
+    try {
+      const geminiResponse = await axios.post(geminiUrl, requestBody);
+      text = geminiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+    } catch (geminiError) {
+      console.error('Gemini API call failed:', geminiError.response?.data || geminiError.message);
+      return res.status(500).json({ error: 'Gemini API failed. Please try again later.' });
+    }
 
     const locationMatches = text.match(/[A-Z][a-zA-Z\s]+(Museum|Palace|Tower|Garden|Cathedral|Park|Market|Square|Bridge|Temple|Castle|Gallery)/g) || [];
     const uniqueLocations = [...new Set(locationMatches)];
@@ -168,7 +177,7 @@ export const generateTrip = async (req, res) => {
       hotels: hotels,
     });
   } catch (error) {
-    console.error('Error generating trip:', error.message);
+    console.error('Error generating trip:', error);
     res.status(500).json({ error: 'Failed to generate trip plan. Please try again later.' });
   }
 };
